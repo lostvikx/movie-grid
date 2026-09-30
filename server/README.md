@@ -18,6 +18,17 @@ The API listens on <http://127.0.0.1:8000> and its docs are at
 If `app/dist` exists it is served as a static site, so one process can host the
 whole application.
 
+For a deployment-like run, build the frontend and then bind the port the way a
+host such as Render does (`$PORT`, default 8000):
+
+```bash
+cd app && npm run build
+cd .. && PORT=8080 uv run --project server uvicorn movie_grid_server.main:app --host 0.0.0.0 --port 8080
+```
+
+`GET /api/health` returns `{"status": "ok"}` and is the health check the Docker
+image and `render.yaml` use.
+
 ## Configuration
 
 | Variable | Default | Meaning |

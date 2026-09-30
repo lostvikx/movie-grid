@@ -1,0 +1,20 @@
+# Render blueprint: https://render.com/docs/blueprint-spec
+#
+# One web service that serves both the API and the built frontend from the same
+# origin, so the browser only ever talks to one host and CORS never comes up.
+services:
+  - type: web
+    name: movie-grid
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: TMDB_API_KEY
+        # Set this in the Render dashboard (or with `render` CLI), never in git.
+        sync: false
+      # Only needed if you ever serve the frontend from a different origin than
+      # the API. Left unset, the app and API share an origin and CORS is unused.
+      - key: CORS_ORIGINS
+        sync: false

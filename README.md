@@ -11,6 +11,8 @@ The repository is a small two-part app:
 | [`app/`](app) | The React single-page app | React 19 + TypeScript + Vite, `@dnd-kit`, `html-to-image` |
 | [`server/`](server) | A proxy in front of TMDB | FastAPI + `uv` (uvicorn, httpx) |
 
+`Dockerfile` and `render.yaml` deploy both as one service.
+
 ## Why a backend?
 
 Originally the browser called TMDB directly, which meant the API key had to be
@@ -95,23 +97,39 @@ uv run --project server pytest   # 13 FastAPI tests, no network or real key need
 
 ## Deployment
 
-GitHub Pages cannot run a Python server, so the app is deployed as a single
-container instead:
+Deployed on [Render](https://render.com) as a single Docker web service. The
+image builds the frontend and serves it from FastAPI on one port, so the app
+and the API share an origin and CORS is never involved.
+
+The repository is deployment-ready as a [Render blueprint](https://render.com/docs/blueprint-spec):
+
+1. Push this repository to GitHub (Render reads it from there).
+2. In Render: **New → Blueprint**, select the repo. Render reads `render.yaml`.
+3. When prompted, set `TMDB_API_KEY` to your TMDB key. Render stores it as an
+   environment variable, not in the image or the repo.
+
+That gives you `https://movie-grid.onrender.com` serving the whole app. The
+build takes a few minutes the first time (it installs Node and Python
+dependencies); `render.yaml` wires up a health check against `/api/health`.
+
+To deploy it another way, the same image runs anywhere Docker does:
 
 ```bash
 docker build -t movie-grid .
 docker run -p 8000:8000 -e TMDB_API_KEY=your_key movie-grid
 ```
 
-The image builds the frontend and serves it from FastAPI on a single port, which
-suits any container host (Fly.io, Railway, Render, Cloud Run, a VPS). Two things
-to remember on a real deployment:
+The service listens on `$PORT` (8000 by default) and answers `/api/health`, which
+is what Render and most PaaS providers probe. On the free plan the service
+sleeps when idle, so the first request after a quiet period can take a few
+seconds.
 
-* Set `CORS_ORIGINS` to your site origin, or drop it if the app and API share an
-  origin (the default setup).
-* Add TMDB attribution and follow
-  [TMDB's terms of use](https://www.themoviedb.org/tos), which ask you to link
-  back to TMDB.
+Two things to remember on a real deployment:
+
+* Add TMDB attribution and follow [TMDB's terms of use](https://www.themoviedb.org/tos),
+  which ask you to link back to TMDB.
+* If you ever serve the frontend from a different origin than the API, set
+  `CORS_ORIGINS` to that origin.
 
 ## Scope
 
