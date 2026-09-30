@@ -6,13 +6,21 @@ type Props = {
   movie: Movie
   className?: string
   eager?: boolean
+  /**
+   * Pre-loaded image bytes. The export stage passes a data URL here so the
+   * capture never depends on the browser fetching the poster, and so
+   * `html-to-image` never re-fetches (and mis-caches) it.
+   */
+  dataUrl?: string
 }
 
 /** Poster with graceful fallbacks for missing artwork and failed loads. */
-export function MoviePoster({ movie, className, eager = false }: Props) {
-  const [failed, setFailed] = useState(false)
-  const url = getPosterUrl(movie.poster_path)
-  const showImage = url !== '' && !failed
+export function MoviePoster({ movie, className, eager = false, dataUrl }: Props) {
+  // Remember *which* URL failed, so a new poster is retried automatically
+  // instead of inheriting the previous failure.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const url = dataUrl || getPosterUrl(movie.poster_path)
+  const showImage = url !== '' && failedUrl !== url
 
   return (
     <div className={`poster ${className ?? ''}`} data-testid="poster">
@@ -23,7 +31,7 @@ export function MoviePoster({ movie, className, eager = false }: Props) {
           alt={`${movie.title} poster`}
           loading={eager ? 'eager' : 'lazy'}
           crossOrigin="anonymous"
-          onError={() => setFailed(true)}
+          onError={() => setFailedUrl(url)}
         />
       ) : (
         <div className="poster-fallback" aria-hidden="true">

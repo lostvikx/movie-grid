@@ -1,14 +1,14 @@
 import { useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { toPng } from 'html-to-image'
 import { isFull } from '../lib/grid'
+import { posterTitle, preparePosters, type PosterDataUrls } from '../lib/posters'
 import type { Grid } from '../types/movie'
 import { GridCanvas, MoviePoster } from './MoviePoster'
 
 /** Fixed export width so the PNG size never depends on the viewport. */
 const EXPORT_WIDTH = 1200
 const FILENAME = 'movie-grid.png'
-/** Upper bound on how long we wait for poster images before capturing. */
-const IMAGE_TIMEOUT_MS = 10000
 
 type Props = {
   grid: Grid
@@ -18,29 +18,14 @@ type Props = {
 
 type Status = 'idle' | 'working' | 'error'
 
-async function waitForImages(node: HTMLElement): Promise<void> {
-  const images = Array.from(node.querySelectorAll('img'))
-  const timeout = new Promise<void>((resolve) =>
-    window.setTimeout(resolve, IMAGE_TIMEOUT_MS),
-  )
-  await Promise.race([
-    Promise.all(
-      images.map((image) => {
-        if (image.complete) return Promise.resolve()
-        return new Promise<void>((resolve) => {
-          image.addEventListener('load', () => resolve(), { once: true })
-          image.addEventListener('error', () => resolve(), { once: true })
-        })
-      }),
-    ),
-    timeout,
-  ])
-}
+const NO_URLS: PosterDataUrls = new Map()
 
 export function DownloadButton({ grid, background, spacing }: Props) {
   const exportRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState<string | null>(null)
+  /** Posters already downloaded as data URLs, ready to be captured. */
+  const [posterData, setPosterData] = useState<PosterDataUrls>(NO_URLS)
   const ready = isFull(grid)
 
   async function handleDownload() {
@@ -50,11 +35,35 @@ export function DownloadButton({ grid, background, spacing }: Props) {
     setMessage(null)
 
     try {
-      await waitForImages(node)
+      // Download every poster first. Nothing is captured from a half-loaded
+      // grid: either all nine posters are in hand or the export stops here.
+      const { urls, failed } = await preparePosters(grid)
+      if (failed.length > 0) {
+        setStatus('error')
+        setMessage(
+          `${failed.length} poster${failed.length > 1 ? 's' : ''} could not be loaded (${failed
+            .slice(0, 2)
+            .map((path) => posterTitle(path, grid))
+            .join(', ')}${failed.length > 2 ? ', …' : ''}). Check your connection and try again.`,
+        )
+        return
+      }
+
+      // Commit the data URLs before capturing, so the clone sees them.
+      flushSync(() => setPosterData(urls))
+
       const dataUrl = await toPng(node, {
         pixelRatio: 1,
         width: EXPORT_WIDTH,
         cacheBust: false,
+        // The posters are data URLs by now, so this library never inlines or
+        // caches them itself — but keep the full URL key as well, so a poster
+        // that falls back to its network URL still cannot collide with another.
+        includeQueryParams: true,
+        // Turn a silent blank cell into a real error the user can see.
+        onImageErrorHandler: () => {
+          throw new Error('A poster image could not be read during export.')
+        },
       })
       const link = document.createElement('a')
       link.download = FILENAME
@@ -109,7 +118,11 @@ export function DownloadButton({ grid, background, spacing }: Props) {
             {grid.map((movie, index) =>
               movie ? (
                 <div className="grid-cell is-filled" key={index}>
-                  <MoviePoster movie={movie} eager />
+                  <MoviePoster
+                    movie={movie}
+                    eager
+                    dataUrl={movie.poster_path ? posterData.get(movie.poster_path) : undefined}
+                  />
                 </div>
               ) : (
                 <div className="grid-cell is-empty" key={index} />
