@@ -60,7 +60,7 @@ describe('useMovieSearch', () => {
     expect(hook.current.loading).toBe(false)
   })
 
-  it('caps results at ten entries', async () => {
+  it('returns at most four entries', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ results: Array.from({ length: 25 }, (_, i) => result(i, `M${i}`)) }),
     )
@@ -68,7 +68,7 @@ describe('useMovieSearch', () => {
     await act(async () => {
       vi.advanceTimersByTime(400)
     })
-    await waitFor(() => expect(hook.current.results).toHaveLength(10))
+    await waitFor(() => expect(hook.current.results).toHaveLength(4))
   })
 
   it('ignores a stale response that resolves after a newer one', async () => {

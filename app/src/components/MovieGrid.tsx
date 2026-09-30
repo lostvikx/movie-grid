@@ -78,7 +78,6 @@ export function MovieGrid({
             total={grid.length}
             movie={movie}
             onRemove={onRemove}
-            onMove={(from, to) => onDrop(from, to)}
             onSelect={onSelect}
           />
         ))}

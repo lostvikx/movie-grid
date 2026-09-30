@@ -10,7 +10,7 @@ type SearchState = {
   error: string | null
 }
 
-export function useMovieSearch(query: string, limit = 10): SearchState {
+export function useMovieSearch(query: string): SearchState {
   const [state, setState] = useState<SearchState>({
     results: [],
     loading: false,
@@ -35,7 +35,7 @@ export function useMovieSearch(query: string, limit = 10): SearchState {
       try {
         const results = await searchMovies(trimmed, controller.signal)
         if (requestId !== requestIdRef.current) return
-        setState({ results: results.slice(0, limit), loading: false, error: null })
+        setState({ results, loading: false, error: null })
       } catch (error) {
         if (controller.signal.aborted || requestId !== requestIdRef.current) return
         setState({
@@ -50,7 +50,7 @@ export function useMovieSearch(query: string, limit = 10): SearchState {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [query, limit])
+  }, [query])
 
   return state
 }

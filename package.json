@@ -1,0 +1,19 @@
+{
+  "name": "movie-grid",
+  "version": "1.0.0",
+  "description": "Search [TMDB](https://www.themoviedb.org), fill a 3×3 poster grid, rearrange the posters by dragging, customise the background and spacing, and download the grid as a PNG.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lostvikx/movie-grid.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/lostvikx/movie-grid/issues"
+  },
+  "homepage": "https://github.com/lostvikx/movie-grid#readme"
+}

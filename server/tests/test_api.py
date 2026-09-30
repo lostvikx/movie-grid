@@ -167,7 +167,7 @@ def test_search_retries_transient_connection_errors(tmdb_key, fake_tmdb):
     assert attempts["n"] == 2
 
 
-def test_search_gives_up_after_three_failed_attempts(tmdb_key, fake_tmdb):
+def test_search_gives_up_after_retries_are_exhausted(tmdb_key, fake_tmdb):
     attempts = {"n": 0}
 
     def handler(url, params, headers):
@@ -179,4 +179,4 @@ def test_search_gives_up_after_three_failed_attempts(tmdb_key, fake_tmdb):
     response = client.get("/api/search", params={"q": "alien"})
 
     assert response.status_code == 502
-    assert attempts["n"] == 3
+    assert attempts["n"] == 4

@@ -6,6 +6,8 @@ import type { Movie } from '../types/movie'
  * the PNG export is never blocked by cross-origin canvas rules.
  */
 const API_BASE = '/api'
+/** How many search results we show — keeps the sidebar compact. */
+export const MAX_RESULTS = 4
 
 type MovieResult = {
   id: number
@@ -79,10 +81,10 @@ export async function searchMovies(
   const trimmed = query.trim()
   if (!trimmed) return []
   const data = await request<SearchResponse>(
-    `/search?q=${encodeURIComponent(trimmed)}`,
+    `/search?q=${encodeURIComponent(trimmed)}&limit=${MAX_RESULTS}`,
     signal,
   )
-  return (data.results ?? []).slice(0, 10).map(toMovie)
+  return (data.results ?? []).slice(0, MAX_RESULTS).map(toMovie)
 }
 
 export async function getMovieDetails(

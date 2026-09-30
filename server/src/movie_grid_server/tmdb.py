@@ -40,10 +40,10 @@ def client_kwargs() -> dict[str, Any]:
     return {"verify": tls_verify()}
 
 
-# Some networks intermittently reset TLS connections; retry a couple of times
-# before giving up so a single blip does not surface as a user-facing error.
-MAX_ATTEMPTS = 3
-RETRY_DELAY_SECONDS = 0.4
+# Some networks intermittently reset TLS connections; retry a few times before
+# giving up so a single blip does not surface as a user-facing error.
+MAX_ATTEMPTS = 4
+RETRY_DELAY_SECONDS = 0.5
 
 
 async def get_with_retry(

@@ -144,8 +144,7 @@ body {
 .input:focus-visible,
 .button:focus-visible,
 .swatch:focus-visible,
-.slot-action:focus-visible,
-.drag-handle:focus-visible,
+.cell-icon:focus-visible,
 .poster-button:focus-visible,
 .modal-close:focus-visible,
 .color-input:focus-visible,
@@ -365,8 +364,8 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 34px;
-  padding: 14px 8px 4px;
+  bottom: 0;
+  padding: 18px 8px 6px;
   font-size: 0.72rem;
   line-height: 1.2;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
@@ -380,53 +379,39 @@ body {
   color: rgba(255, 255, 255, 0.65);
 }
 
-.slot-actions {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  background: rgba(0, 0, 0, 0.65);
-}
-
-.slot-action {
-  flex: 1;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text);
-  font-size: 0.7rem;
-  line-height: 1;
-  padding: 3px 0;
-  cursor: pointer;
-}
-
-.slot-action:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.slot-action:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.slot-action--remove:hover:not(:disabled) {
-  background: var(--danger);
-  color: #111;
-}
-
-.drag-handle {
+.cell-tools {
   position: absolute;
   top: 4px;
   left: 4px;
+  display: flex;
+  gap: 3px;
+}
+
+.cell-icon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.6);
   color: var(--text);
-  padding: 2px 6px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cell-icon:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.cell-icon--remove:hover {
+  background: var(--danger);
+  color: #111;
+}
+
+.cell-icon--drag {
   cursor: grab;
   touch-action: none;
 }

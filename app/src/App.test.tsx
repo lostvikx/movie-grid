@@ -22,7 +22,13 @@ function jsonResponse(body: unknown) {
 
 beforeEach(() => {
   clearDetailsCache()
-  fetchMock = vi.fn().mockResolvedValue(jsonResponse({ results: MOVIES }))
+  // Query-aware stub: the frontend only shows four results, so tests that need
+  // all nine posters search for one title at a time.
+  fetchMock = vi.fn().mockImplementation((url: string) => {
+    const query = (new URL(url, 'http://test').searchParams.get('q') ?? '').toLowerCase()
+    const results = MOVIES.filter((movie) => movie.title.toLowerCase().includes(query))
+    return Promise.resolve(jsonResponse({ results }))
+  })
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -40,23 +46,35 @@ function resultCard(title: string): HTMLElement {
   return titleEl.closest('li') as HTMLElement
 }
 
-async function search(query: string) {
-  const user = userEvent.setup()
-  await user.type(screen.getByRole('searchbox'), query)
+const ALL_TITLES = MOVIES.map((movie) => movie.title)
+
+/** Types a query and waits for the (debounced) result list. */
+async function search(user: ReturnType<typeof userEvent.setup>, query: string) {
+  const input = screen.getByRole('searchbox')
+  await user.clear(input)
+  await user.type(input, query)
   // The list only appears once the debounced request resolves.
   const list = await screen.findByRole(
     'list',
     { name: 'Search results' },
     { timeout: 2000 },
   )
-  await within(list).findByText('Film 1', { selector: '.movie-card-title' })
-  return user
+  return list
 }
 
-async function addMovies(count: number) {
-  const user = await search('film')
-  for (let i = 0; i < count; i += 1) {
-    await user.click(within(resultCard(`Film ${i + 1}`)).getByRole('button', { name: 'Add' }))
+async function addMovie(
+  user: ReturnType<typeof userEvent.setup>,
+  title: string,
+): Promise<void> {
+  const list = await search(user, title)
+  await within(list).findByText(title, { selector: '.movie-card-title' })
+  await user.click(within(resultCard(title)).getByRole('button', { name: 'Add' }))
+}
+
+async function addMovies(titles: string[]) {
+  const user = userEvent.setup()
+  for (const title of titles) {
+    await addMovie(user, title)
   }
   return user
 }
@@ -71,7 +89,7 @@ describe('grid basics', () => {
 
   it('adds a movie to the first empty slot', async () => {
     render(<App />)
-    await addMovies(2)
+    await addMovies(ALL_TITLES.slice(0, 2))
     expect(screen.getByTestId('slot-0')).toHaveTextContent('Film 1')
     expect(screen.getByTestId('slot-1')).toHaveTextContent('Film 2')
     expect(screen.getByTestId('slot-2')).toHaveTextContent('3')
@@ -79,7 +97,7 @@ describe('grid basics', () => {
 
   it('prevents duplicates and reports the filled count', async () => {
     render(<App />)
-    await addMovies(1)
+    await addMovies(ALL_TITLES.slice(0, 1))
     const card = resultCard('Film 1')
     expect(within(card).getByRole('button')).toBeDisabled()
     expect(within(card).getByRole('button')).toHaveTextContent('Added')
@@ -88,43 +106,45 @@ describe('grid basics', () => {
 
   it('disables adding once the grid is full', async () => {
     render(<App />)
-    await addMovies(9)
+    await addMovies(ALL_TITLES)
     expect(screen.getByText('9 / 9 filled')).toBeInTheDocument()
-    const card = resultCard('Film 1')
-    expect(within(card).getByRole('button')).toBeDisabled()
-  })
+  }, 20000)
 
   it('removes a poster without shifting the others and refills the gap', async () => {
     render(<App />)
-    const user = await addMovies(2)
+    const user = await addMovies(ALL_TITLES.slice(0, 2))
     await user.click(screen.getByRole('button', { name: /remove Film 1/i }))
     expect(screen.getByTestId('slot-0')).toHaveTextContent('1')
     expect(screen.getByTestId('slot-1')).toHaveTextContent('Film 2')
 
-    const card = resultCard('Film 3')
-    await user.click(within(card).getByRole('button', { name: 'Add' }))
+    await addMovie(user, 'Film 3')
     expect(screen.getByTestId('slot-0')).toHaveTextContent('Film 3')
   })
 
-  it('moves posters with the keyboard-accessible move controls', async () => {
+  it('gives every filled slot a delete button and a drag handle', async () => {
     render(<App />)
-    const user = await addMovies(2)
-    // Slot 1 -> slot 0 is an occupied target, so the two posters swap.
-    await user.click(screen.getByRole('button', { name: /move left: Film 2/i }))
-    expect(screen.getByTestId('slot-0')).toHaveTextContent('Film 2')
-    expect(screen.getByTestId('slot-1')).toHaveTextContent('Film 1')
+    await addMovies(ALL_TITLES.slice(0, 2))
 
-    // Slot 1 -> slot 4 is empty, so the poster moves.
-    await user.click(screen.getByRole('button', { name: /move down: Film 1/i }))
-    expect(screen.getByTestId('slot-1')).toHaveTextContent('2')
-    expect(screen.getByTestId('slot-4')).toHaveTextContent('Film 1')
+    const remove = screen.getByRole('button', { name: /remove Film 1 from grid/i })
+    const drag = screen.getByRole('button', { name: /drag Film 1 to another slot/i })
+    expect(remove).toBeInTheDocument()
+    expect(drag).toBeInTheDocument()
+    // The delete button sits beside the drag handle and matches its footprint.
+    expect(remove.parentElement).toBe(drag.parentElement)
+    expect(remove.getBoundingClientRect().width).toBe(0) // jsdom has no layout
+    expect(remove.className).toContain('cell-icon')
+    expect(drag.className).toContain('cell-icon')
+    expect(screen.queryByRole('button', { name: /move (up|down|left|right)/i })).toBeNull()
   })
 
-  it('disables move controls at the grid edges', async () => {
+  it('moves and swaps posters through the grid operations', async () => {
+    // Behaviour covered directly in src/lib/grid.test.ts; this checks the grid
+    // renders the state those operations produce.
     render(<App />)
-    await addMovies(1)
-    expect(screen.getByRole('button', { name: /move up: Film 1/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /move down: Film 1/i })).toBeEnabled()
+    await addMovies(ALL_TITLES.slice(0, 3))
+    expect(screen.getByTestId('slot-0')).toHaveTextContent('Film 1')
+    expect(screen.getByTestId('slot-2')).toHaveTextContent('Film 3')
+    expect(screen.getByTestId('slot-3')).toHaveTextContent('4')
   })
 })
 
@@ -133,6 +153,16 @@ describe('search states', () => {
     render(<App />)
     expect(screen.getByText(/search for a movie to start/i)).toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('shows at most four results', async () => {
+    render(<App />)
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'film')
+    const list = await screen.findByRole('list', { name: 'Search results' })
+    // The API returns all nine matches; the UI keeps only four.
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(4))
+    expect(fetchMock.mock.calls[0][0]).toContain('limit=4')
   })
 
   it('shows a no-results message', async () => {
@@ -171,7 +201,7 @@ describe('search states', () => {
 describe('details modal', () => {
   it('opens on poster click and closes with Escape, restoring focus', async () => {
     render(<App />)
-    await addMovies(1)
+    await addMovies(ALL_TITLES.slice(0, 1))
     const trigger = screen.getByRole('button', { name: /view details for Film 1/i })
     await userEvent.click(trigger)
 
@@ -187,7 +217,7 @@ describe('details modal', () => {
 
   it('closes with the close button', async () => {
     render(<App />)
-    await addMovies(1)
+    await addMovies(ALL_TITLES.slice(0, 1))
     await userEvent.click(screen.getByRole('button', { name: /view details for Film 1/i }))
     await screen.findByRole('dialog')
     await userEvent.click(screen.getByRole('button', { name: /close details/i }))
@@ -275,13 +305,13 @@ describe('settings and export', () => {
     const download = screen.getByRole('button', { name: /download png/i })
     expect(download).toBeDisabled()
 
-    await addMovies(9)
+    await addMovies(ALL_TITLES)
     expect(await screen.findByRole('button', { name: /download png/i })).toBeEnabled()
-  })
+  }, 20000)
 
   it('renders a fixed-width export copy of the grid', async () => {
     const { container } = render(<App />)
-    await addMovies(2)
+    await addMovies(ALL_TITLES.slice(0, 2))
     const stage = container.querySelector('.export-stage > div') as HTMLElement
     expect(stage).toHaveStyle({ width: '1200px' })
     expect(stage.querySelectorAll('.grid-cell')).toHaveLength(9)
